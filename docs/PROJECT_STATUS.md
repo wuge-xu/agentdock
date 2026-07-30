@@ -1,8 +1,8 @@
 # AgentDock 项目状态
 
 - 最后更新：2026-07-30
-- 当前阶段：阶段 0——工程基线与架构契约（已完成）
-- 当前步骤：0-H——阶段收尾与远程归档
+- 当前阶段：阶段 1——最小任务 Control Plane
+- 当前步骤：1-B——冻结 Control Plane 技术选型
 
 ## 项目定位
 
@@ -83,6 +83,21 @@ AgentDock 是一个多租户 Agent 运行时与安全执行平台。
 - ToolPolicy
 
 具体字段、索引和数据库约束尚未冻结。
+
+## 阶段 1 已完成
+
+- 冻结阶段 1 最小需求与接口契约
+- 确定 Task 初始状态为 created
+- 确定租户级幂等键语义
+- 确定 Task 查询必须在数据库层携带 tenant_id
+- 确定 live 与 ready 健康检查职责分离
+- HTTP 选择 Go 标准库 net/http ServeMux
+- 日志选择标准库 log/slog JSONHandler
+- 配置采用自定义强类型环境变量解析
+- PostgreSQL选择pgx/v5与pgxpool
+- 数据访问阶段 1 采用手写SQL
+- 数据库迁移选择Goose v3 SQL Migration
+- 数据库迁移与应用启动生命周期分离
 
 ## 阶段 0 验收结果
 
