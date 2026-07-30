@@ -45,6 +45,6 @@ AgentDock 是一个以 Go Control Plane 为核心的 Agent Runtime 平台，用�
 
 ## 当前状态
 
-项目处于工程基线与架构契约阶段，尚未开始业务代码实现。
+阶段 0 工程基线与架构契约已完成，下一阶段将实现最小 Go Control Plane、健康检查与基础设施连接。
 
 详细进度见 [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)。
