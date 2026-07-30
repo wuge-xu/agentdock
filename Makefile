@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 GO ?= go
 PYTHON ?= python3.12
 
-.PHONY: verify-tools tree status
+.PHONY: verify-tools tree status fmt-check test test-race vet check
 
 verify-tools:
 > @printf '\n===== GO =====\n'
@@ -25,3 +25,21 @@ tree:
 
 status:
 > @git status --short
+
+fmt-check:
+> @unformatted="$$(gofmt -l $$(find . -type f -name '*.go' -not -path './vendor/*'))"; \
+> if test -n "$$unformatted"; then \
+>   printf '%s\n' "$$unformatted"; \
+>   exit 1; \
+> fi
+
+test:
+> @$(GO) test ./...
+
+test-race:
+> @CGO_ENABLED=1 $(GO) test -race ./...
+
+vet:
+> @$(GO) vet ./...
+
+check: fmt-check vet test
