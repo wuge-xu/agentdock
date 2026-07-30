@@ -2,7 +2,7 @@
 
 - 最后更新：2026-07-30
 - 当前阶段：阶段 1——最小任务 Control Plane
-- 当前步骤：1-D——强类型配置系统（已完成）
+- 当前步骤：1-E——JSON 结构化日志基础（已完成）
 
 ## 项目定位
 
@@ -105,6 +105,13 @@ AgentDock 是一个多租户 Agent 运行时与安全执行平台。
 - 为配置系统增加单元测试与非法输入测试
 - 配置模块通过Race Detector、go vet和格式检查
 - Makefile增加check、test、test-race和vet统一入口
+- 实现基于log/slog的统一JSON日志创建入口
+- 日志默认输出到标准输出
+- 日志自动附加service和可选version字段
+- 支持派生component级日志器
+- 实现日志级别过滤
+- 为结构化字段、默认服务名和组件字段增加单元测试
+- 日志模块通过Race Detector、go vet和格式检查
 
 ## 阶段 0 验收结果
 
