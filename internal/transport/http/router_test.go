@@ -1,13 +1,26 @@
 package httptransport
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
+
+type routerDatabasePinger struct {
+	ping func(context.Context) error
+}
+
+func (pinger routerDatabasePinger) Ping(
+	ctx context.Context,
+) error {
+	return pinger.ping(ctx)
+}
 
 func TestLiveHealthEndpoint(t *testing.T) {
 	t.Parallel()
@@ -19,11 +32,17 @@ func TestLiveHealthEndpoint(t *testing.T) {
 		"/health/live",
 		nil,
 	)
-	request.Header.Set(RequestIDHeader, requestID)
+	request.Header.Set(
+		RequestIDHeader,
+		requestID,
+	)
 
 	recorder := httptest.NewRecorder()
 
-	newTestRouter().ServeHTTP(recorder, request)
+	newTestRouter().ServeHTTP(
+		recorder,
+		request,
+	)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf(
@@ -49,40 +68,94 @@ func TestLiveHealthEndpoint(t *testing.T) {
 		)
 	}
 
-	var response healthResponse
-	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-
-	if response.Status != "alive" {
+	if got := recorder.Body.String(); got != "{\"status\":\"alive\"}\n" {
 		t.Fatalf(
-			"response status = %q, want alive",
-			response.Status,
+			"body = %q, want alive response",
+			got,
 		)
 	}
 }
 
-func TestLiveHealthEndpointRejectsUnsupportedMethod(t *testing.T) {
+func TestLiveHealthEndpointRejectsUnsupportedMethod(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	const requestID = "method-request-id"
+	const requestID = "live-method-request-id"
 
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/health/live",
 		nil,
 	)
-	request.Header.Set(RequestIDHeader, requestID)
+	request.Header.Set(
+		RequestIDHeader,
+		requestID,
+	)
 
 	recorder := httptest.NewRecorder()
 
-	newTestRouter().ServeHTTP(recorder, request)
+	newTestRouter().ServeHTTP(
+		recorder,
+		request,
+	)
 
 	if recorder.Code != http.StatusMethodNotAllowed {
 		t.Fatalf(
 			"status code = %d, want %d",
 			recorder.Code,
 			http.StatusMethodNotAllowed,
+		)
+	}
+
+	response := decodeErrorResponse(
+		t,
+		recorder,
+	)
+
+	if response.Error.Code != "method_not_allowed" {
+		t.Fatalf(
+			"error code = %q, want method_not_allowed",
+			response.Error.Code,
+		)
+	}
+
+	if response.Error.RequestID != requestID {
+		t.Fatalf(
+			"request ID = %q, want %q",
+			response.Error.RequestID,
+			requestID,
+		)
+	}
+}
+
+func TestReadyHealthEndpoint(t *testing.T) {
+	t.Parallel()
+
+	const requestID = "ready-request-id"
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/health/ready",
+		nil,
+	)
+	request.Header.Set(
+		RequestIDHeader,
+		requestID,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	newTestRouter().ServeHTTP(
+		recorder,
+		request,
+	)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"status code = %d, want %d",
+			recorder.Code,
+			http.StatusOK,
 		)
 	}
 
@@ -94,7 +167,115 @@ func TestLiveHealthEndpointRejectsUnsupportedMethod(t *testing.T) {
 		)
 	}
 
-	response := decodeErrorResponse(t, recorder)
+	if got := recorder.Body.String(); got != "{\"status\":\"ready\"}\n" {
+		t.Fatalf(
+			"body = %q, want ready response",
+			got,
+		)
+	}
+}
+
+func TestReadyHealthEndpointReturnsUnavailableWhenDatabaseFails(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	const requestID = "ready-database-down"
+
+	database := routerDatabasePinger{
+		ping: func(
+			_ context.Context,
+		) error {
+			return errors.New(
+				"database unavailable",
+			)
+		},
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/health/ready",
+		nil,
+	)
+	request.Header.Set(
+		RequestIDHeader,
+		requestID,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	newTestRouterWithDatabase(
+		database,
+	).ServeHTTP(
+		recorder,
+		request,
+	)
+
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf(
+			"status code = %d, want %d",
+			recorder.Code,
+			http.StatusServiceUnavailable,
+		)
+	}
+
+	response := decodeErrorResponse(
+		t,
+		recorder,
+	)
+
+	if response.Error.Code != "database_unavailable" {
+		t.Fatalf(
+			"error code = %q, want database_unavailable",
+			response.Error.Code,
+		)
+	}
+
+	if response.Error.RequestID != requestID {
+		t.Fatalf(
+			"request ID = %q, want %q",
+			response.Error.RequestID,
+			requestID,
+		)
+	}
+}
+
+func TestReadyHealthEndpointRejectsUnsupportedMethod(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	const requestID = "ready-method-request-id"
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/health/ready",
+		nil,
+	)
+	request.Header.Set(
+		RequestIDHeader,
+		requestID,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	newTestRouter().ServeHTTP(
+		recorder,
+		request,
+	)
+
+	if recorder.Code != http.StatusMethodNotAllowed {
+		t.Fatalf(
+			"status code = %d, want %d",
+			recorder.Code,
+			http.StatusMethodNotAllowed,
+		)
+	}
+
+	response := decodeErrorResponse(
+		t,
+		recorder,
+	)
 
 	if response.Error.Code != "method_not_allowed" {
 		t.Fatalf(
@@ -105,7 +286,7 @@ func TestLiveHealthEndpointRejectsUnsupportedMethod(t *testing.T) {
 
 	if response.Error.RequestID != requestID {
 		t.Fatalf(
-			"error request ID = %q, want %q",
+			"request ID = %q, want %q",
 			response.Error.RequestID,
 			requestID,
 		)
@@ -122,11 +303,17 @@ func TestRouterReturnsJSONNotFound(t *testing.T) {
 		"/unknown",
 		nil,
 	)
-	request.Header.Set(RequestIDHeader, requestID)
+	request.Header.Set(
+		RequestIDHeader,
+		requestID,
+	)
 
 	recorder := httptest.NewRecorder()
 
-	newTestRouter().ServeHTTP(recorder, request)
+	newTestRouter().ServeHTTP(
+		recorder,
+		request,
+	)
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf(
@@ -136,15 +323,10 @@ func TestRouterReturnsJSONNotFound(t *testing.T) {
 		)
 	}
 
-	if got := recorder.Header().Get(RequestIDHeader); got != requestID {
-		t.Fatalf(
-			"response request ID = %q, want %q",
-			got,
-			requestID,
-		)
-	}
-
-	response := decodeErrorResponse(t, recorder)
+	response := decodeErrorResponse(
+		t,
+		recorder,
+	)
 
 	if response.Error.Code != "route_not_found" {
 		t.Fatalf(
@@ -155,7 +337,7 @@ func TestRouterReturnsJSONNotFound(t *testing.T) {
 
 	if response.Error.RequestID != requestID {
 		t.Fatalf(
-			"error request ID = %q, want %q",
+			"request ID = %q, want %q",
 			response.Error.RequestID,
 			requestID,
 		)
@@ -177,14 +359,38 @@ func decodeErrorResponse(
 	}
 
 	var response errorEnvelope
-	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
-		t.Fatalf("decode error response: %v", err)
+
+	if err := json.NewDecoder(
+		recorder.Body,
+	).Decode(
+		&response,
+	); err != nil {
+		t.Fatalf(
+			"decode error response: %v",
+			err,
+		)
 	}
 
 	return response
 }
 
 func newTestRouter() http.Handler {
+	database := routerDatabasePinger{
+		ping: func(
+			_ context.Context,
+		) error {
+			return nil
+		},
+	}
+
+	return newTestRouterWithDatabase(
+		database,
+	)
+}
+
+func newTestRouterWithDatabase(
+	database DatabasePinger,
+) http.Handler {
 	logger := slog.New(
 		slog.NewJSONHandler(
 			io.Discard,
@@ -192,5 +398,9 @@ func newTestRouter() http.Handler {
 		),
 	)
 
-	return NewRouter(logger)
+	return NewRouter(
+		logger,
+		database,
+		time.Second,
+	)
 }

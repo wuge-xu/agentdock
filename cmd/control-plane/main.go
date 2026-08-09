@@ -12,6 +12,7 @@ import (
 
 	"github.com/wuge-xu/agentdock/internal/config"
 	"github.com/wuge-xu/agentdock/internal/platform/logging"
+	"github.com/wuge-xu/agentdock/internal/platform/postgres"
 	httptransport "github.com/wuge-xu/agentdock/internal/transport/http"
 )
 
@@ -51,7 +52,10 @@ func main() {
 	); err != nil {
 		logger.Error(
 			"control plane stopped with error",
-			slog.String("error", err.Error()),
+			slog.String(
+				"error",
+				err.Error(),
+			),
 		)
 		os.Exit(1)
 	}
@@ -62,6 +66,18 @@ func run(
 	cfg config.Config,
 	logger *slog.Logger,
 ) error {
+	databasePool, err := postgres.NewPool(
+		ctx,
+		cfg.Database,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"initialize PostgreSQL pool: %w",
+			err,
+		)
+	}
+	defer databasePool.Close()
+
 	httpLogger := logging.Component(
 		logger,
 		"http",
@@ -69,6 +85,8 @@ func run(
 
 	router := httptransport.NewRouter(
 		httpLogger,
+		databasePool,
+		cfg.Database.ConnectTimeout,
 	)
 
 	server := httptransport.NewServer(
