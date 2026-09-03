@@ -10,12 +10,14 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/wuge-xu/agentdock/internal/application"
 	taskdomain "github.com/wuge-xu/agentdock/internal/domain/task"
 )
 
 var (
-	ErrTaskNotFound      = errors.New("task not found")
-	ErrTaskAlreadyExists = errors.New("task already exists")
+	ErrTaskNotFound = application.ErrTaskNotFound
+
+	ErrTaskAlreadyExists = application.ErrTaskAlreadyExists
 )
 
 const taskColumns = `
@@ -34,6 +36,8 @@ const taskColumns = `
 type TaskRepository struct {
 	pool *pgxpool.Pool
 }
+
+var _ application.TaskRepository = (*TaskRepository)(nil)
 
 func NewTaskRepository(
 	pool *pgxpool.Pool,
@@ -97,7 +101,7 @@ func (repository *TaskRepository) Create(
 	) {
 		return fmt.Errorf(
 			"%w: tenant_id=%s idempotency_key=%q",
-			ErrTaskAlreadyExists,
+			application.ErrTaskAlreadyExists,
 			value.TenantID,
 			value.IdempotencyKey,
 		)
@@ -187,7 +191,7 @@ func (repository *TaskRepository) queryTask(
 			pgx.ErrNoRows,
 		) {
 			return taskdomain.Task{},
-				ErrTaskNotFound
+				application.ErrTaskNotFound
 		}
 
 		return taskdomain.Task{},
