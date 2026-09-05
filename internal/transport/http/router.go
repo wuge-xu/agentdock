@@ -10,14 +10,34 @@ func NewRouter(
 	logger *slog.Logger,
 	database DatabasePinger,
 	readinessTimeout time.Duration,
+	taskHandlers ...*TaskHandler,
 ) http.Handler {
 	mux := http.NewServeMux()
 
 	healthHandler := NewHealthHandler()
+
 	readinessHandler := NewReadinessHandler(
 		database,
 		readinessTimeout,
 	)
+
+	var taskHandler *TaskHandler
+
+	if len(taskHandlers) > 0 {
+		taskHandler = taskHandlers[0]
+	}
+
+	if taskHandler != nil {
+		mux.HandleFunc(
+			"POST /api/v1/tasks",
+			taskHandler.Create,
+		)
+
+		mux.HandleFunc(
+			"GET /api/v1/tasks/{task_id}",
+			taskHandler.Get,
+		)
+	}
 
 	mux.HandleFunc(
 		"GET /health/live",

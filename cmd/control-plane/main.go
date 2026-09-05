@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/wuge-xu/agentdock/internal/application"
 	"github.com/wuge-xu/agentdock/internal/config"
 	"github.com/wuge-xu/agentdock/internal/platform/logging"
 	"github.com/wuge-xu/agentdock/internal/platform/postgres"
@@ -78,6 +79,20 @@ func run(
 	}
 	defer databasePool.Close()
 
+	taskRepository := postgres.NewTaskRepository(
+		databasePool,
+	)
+
+	taskService := application.NewTaskService(
+		taskRepository,
+		nil,
+		nil,
+	)
+
+	taskHandler := httptransport.NewTaskHandler(
+		taskService,
+	)
+
 	httpLogger := logging.Component(
 		logger,
 		"http",
@@ -87,6 +102,7 @@ func run(
 		httpLogger,
 		databasePool,
 		cfg.Database.ConnectTimeout,
+		taskHandler,
 	)
 
 	server := httptransport.NewServer(
